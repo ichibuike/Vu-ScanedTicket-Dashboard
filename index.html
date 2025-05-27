@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard – QR Scans</title>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeeUgQQsHJLB0JTq8RHwlMPz2lSNl9T8k",
+      authDomain: "qr-scanner-app-e3d83.firebaseapp.com",
+      projectId: "qr-scanner-app-e3d83",
+      storageBucket: "qr-scanner-app-e3d83.appspot.com",
+      messagingSenderId: "976726923438",
+      appId: "1:976726923438:web:0323093c6f8028afb9753f",
+      measurementId: "G-PDP8G7QL71"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    async function loadScans() {
+      const tbody = document.querySelector("#scan-table tbody");
+      tbody.innerHTML = "<tr><td colspan='3'>Loading...</td></tr>";
+
+      try {
+        const scansCol = collection(db, "scans");
+        const scanSnapshot = await getDocs(scansCol);
+
+        tbody.innerHTML = "";
+        let i = 1;
+
+        scanSnapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          const code = data.code || docSnap.id;
+          const timestamp = new Date(data.timestamp).toLocaleString();
+
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${i++}</td><td>${code}</td><td>${timestamp}</td>`;
+          tbody.appendChild(row);
+        });
+
+        if (i === 1) {
+          tbody.innerHTML = "<tr><td colspan='3'>No scans found.</td></tr>";
+        }
+      } catch (err) {
+        console.error("Error loading scans:", err);
+        tbody.innerHTML = "<tr><td colspan='3'>Error loading data</td></tr>";
+      }
+    }
+
+    window.loadScans = loadScans;
+    window.onload = loadScans;
+  </script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 30px;
+      text-align: center;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background: #f0f0f0;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 15px;
+      font-weight: bold;
+      background: #111;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Admin Dashboard – Scanned Tickets</h2>
+    <button onclick="loadScans()">🔄 Refresh</button>
+
+    <table id="scan-table">
+      <thead>
+        <tr><th>#</th><th>Ticket Code</th><th>Timestamp</th></tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="3">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
