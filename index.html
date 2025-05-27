@@ -9,7 +9,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
     import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
 
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDeeUgQQsHJLB0JTq8RHwlMPz2lSNl9T8k",
       authDomain: "qr-scanner-app-e3d83.firebaseapp.com",
@@ -23,6 +22,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    let allScans = [];
+
     async function loadScans() {
       const tbody = document.querySelector("#scan-table tbody");
       tbody.innerHTML = "<tr><td colspan='3'>Loading...</td></tr>";
@@ -31,29 +32,83 @@
         const scansCol = collection(db, "scans");
         const scanSnapshot = await getDocs(scansCol);
 
-        tbody.innerHTML = "";
-        let i = 1;
-
+        allScans = [];
         scanSnapshot.forEach(docSnap => {
           const data = docSnap.data();
           const code = data.code || docSnap.id;
-          const timestamp = new Date(data.timestamp).toLocaleString();
-
-          const row = document.createElement("tr");
-          row.innerHTML = `<td>${i++}</td><td>${code}</td><td>${timestamp}</td>`;
-          tbody.appendChild(row);
+          const timestamp = new Date(data.timestamp);
+          allScans.push({ code, timestamp });
         });
 
-        if (i === 1) {
-          tbody.innerHTML = "<tr><td colspan='3'>No scans found.</td></tr>";
-        }
+        updateStats(allScans);
+        renderTable(allScans);
       } catch (err) {
         console.error("Error loading scans:", err);
         tbody.innerHTML = "<tr><td colspan='3'>Error loading data</td></tr>";
       }
     }
 
+    function renderTable(data) {
+      const tbody = document.querySelector("#scan-table tbody");
+      tbody.innerHTML = "";
+
+      if (data.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='3'>No scans found.</td></tr>";
+        return;
+      }
+
+      data.forEach((scan, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${index + 1}</td><td>${scan.code}</td><td>${scan.timestamp.toLocaleString()}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    function updateStats(scans) {
+      const total = scans.length;
+      const today = new Date().toDateString();
+      const scansToday = scans.filter(scan => scan.timestamp.toDateString() === today).length;
+
+      const mostRecent = scans.reduce((latest, current) => {
+        return latest.timestamp > current.timestamp ? latest : current;
+      }, { timestamp: new Date(0) });
+
+      document.getElementById("totalScans").textContent = total;
+      document.getElementById("scansToday").textContent = scansToday;
+      document.getElementById("latestScan").textContent = mostRecent.timestamp.getTime() === 0 ? "N/A" : mostRecent.timestamp.toLocaleString();
+    }
+
+    function handleSearch() {
+      const query = document.getElementById("searchInput").value.toLowerCase();
+      const filtered = allScans.filter(scan => scan.code.toLowerCase().includes(query));
+      renderTable(filtered);
+    }
+
+    function exportToCSV() {
+      const headers = ["#", "Ticket Code", "Timestamp"];
+      const rows = allScans.map((scan, index) => [
+        index + 1,
+        scan.code,
+        scan.timestamp.toLocaleString()
+      ]);
+      const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "qr_scans.csv");
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    setInterval(loadScans, 10000);
+
     window.loadScans = loadScans;
+    window.handleSearch = handleSearch;
+    window.exportToCSV = exportToCSV;
     window.onload = loadScans;
   </script>
 
@@ -66,7 +121,7 @@
       text-align: center;
     }
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: auto;
       background: #fff;
       padding: 20px;
@@ -74,12 +129,44 @@
       box-shadow: 0 0 8px rgba(0,0,0,0.1);
     }
     h2 {
+      margin-bottom: 10px;
+    }
+    #searchInput {
+      padding: 10px;
+      width: 100%;
+      max-width: 300px;
+      margin: 10px 0 20px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .stats {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
       margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .card {
+      background: #f0f0f0;
+      border-radius: 10px;
+      padding: 20px;
+      min-width: 150px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.05);
+    }
+    .card h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #555;
+    }
+    .card p {
+      font-size: 20px;
+      font-weight: bold;
+      margin: 8px 0 0;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 10px;
     }
     th, td {
       border: 1px solid #ddd;
@@ -90,7 +177,7 @@
       background: #f0f0f0;
     }
     button {
-      margin-top: 15px;
+      margin: 10px 5px;
       padding: 10px 15px;
       font-weight: bold;
       background: #111;
@@ -104,7 +191,26 @@
 <body>
   <div class="container">
     <h2>Admin Dashboard – Scanned Tickets</h2>
+
+    <div class="stats">
+      <div class="card">
+        <h3>Total Scans</h3>
+        <p id="totalScans">0</p>
+      </div>
+      <div class="card">
+        <h3>Scans Today</h3>
+        <p id="scansToday">0</p>
+      </div>
+      <div class="card">
+        <h3>Most Recent</h3>
+        <p id="latestScan">N/A</p>
+      </div>
+    </div>
+
+    <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Search Ticket Code..." />
+    <br />
     <button onclick="loadScans()">🔄 Refresh</button>
+    <button onclick="exportToCSV()">⬇️ Export CSV</button>
 
     <table id="scan-table">
       <thead>
